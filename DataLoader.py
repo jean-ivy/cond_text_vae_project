@@ -2,7 +2,7 @@ import torch
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 
-class LoadData(Dataset):
+class PascalLoadData(Dataset):
     def __init__(self, names, images, descriptions, vocab):
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
