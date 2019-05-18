@@ -1,1 +1,1 @@
-# cond_text_vae_project
+# Conditional convolutional variational autoencoder for image generation based on text. Convolutional neural networks are used to encode text.
