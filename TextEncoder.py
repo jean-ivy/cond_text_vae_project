@@ -19,7 +19,7 @@ class TextEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, text):
-        text = text.permute(1, 0)
+        #text = text.permute(1, 0)
 
         embedded = self.embedding(text)
 

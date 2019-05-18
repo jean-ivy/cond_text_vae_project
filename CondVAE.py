@@ -10,8 +10,8 @@ class Flatten(nn.Module):
 
 
 class UnFlatten(nn.Module):
-    def forward(self, input, size):
-        return input.view(input.size(0), size, 1, 1)
+    def forward(self, input, size=(128, 7, 7)):
+        return input.view(input.size(0), *size)
 
 
 class TextCondVAE(nn.Module):
@@ -22,37 +22,43 @@ class TextCondVAE(nn.Module):
         # encoder
         self.conv1 = nn.Conv2d(image_channels, 32, kernel_size=4, stride=2)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.pool_size1 = None
 
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.pool_size2 = None
 
         self.conv3 = nn.Conv2d(64, 128, kernel_size=4, stride=2)
         self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, return_indices=True)
+        self.pool_size3 = None
 
         self.flatten = Flatten()
-        self.fc_enc = nn.Linear(128 * 7 * 7, img_h_dim)
+
+        self.img_size = 128 * 7 * 7
+        self.fc_enc = nn.Linear(self.img_size, img_h_dim)
 
         # bottleneck
         self.fc1 = nn.Linear(img_h_dim + text_h_dim, z_dim)
         self.fc2 = nn.Linear(img_h_dim + text_h_dim, z_dim)
-        self.fc3 = nn.Linear(z_dim, img_h_dim)
+        self.fc3 = nn.Linear(z_dim + text_h_dim, self.img_size)
 
         # decoder
         self.unflatten = UnFlatten()
 
-        self.deconv1 = nn.ConvTranspose2d(img_h_dim + text_h_dim, 128, kernel_size=7, stride=1)
+        self.deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2)
         self.uppool1 = nn.MaxUnpool2d(2, stride=2)
+        self.upsample1 = nn.Upsample(scale_factor=2, mode='nearest')
 
-        self.deconv2 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2)
+        self.deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2)
         self.uppool2 = nn.MaxUnpool2d(2, stride=2)
+        self.upsample2 = nn.Upsample(scale_factor=2, mode='nearest')
 
-        self.deconv3 = nn.ConvTranspose2d(64, 32, kernel_size=6, stride=2)
+        self.deconv3 = nn.ConvTranspose2d(32, image_channels, kernel_size=4, stride=2)
         self.uppool3 = nn.MaxUnpool2d(2, stride=2)
-
-        self.deconv4 = nn.ConvTranspose2d(32, 1, kernel_size=6, stride=2)
-        # self.uppool4 = nn.MaxUnpool2d(2, stride=2)
+        self.upsample3 = nn.Upsample(scale_factor=2, mode='nearest')
 
         self.sigm = nn.Sigmoid()
+
         self.text_encoder = TextEncoder(vocab_size, emb_dim, text_h_dim, **cnn_params)
 
     def reparameterize(self, mu, logvar):
@@ -61,73 +67,76 @@ class TextCondVAE(nn.Module):
         z = mu + std * esp
         return z
 
-    def bottleneck(self, h, h_text):
-        mu, logvar = self.fc1(torch.cat((h, h_text), 1)), self.fc2(torch.cat((h, h_text), 1))
+    def bottleneck(self, img_h_dim, text_h_dim):
+        text_img_h_dim = torch.cat((img_h_dim, text_h_dim), 1)
+        mu, logvar = self.fc1(text_img_h_dim), self.fc2(text_img_h_dim)
         z = self.reparameterize(mu, logvar)
         return z, mu, logvar
 
-    def encode(self, x, h_text):
-        # print('enc_inp', x.shape)
+    def encode(self, x, text_h_dim):
+
         out = F.relu(self.conv1(x))
-        # print('conv1', out.shape)
+        if self.pool_size1 is None:
+            self.pool_size1 = out.size()[2:]
+
         out, self.indices1 = self.pool1(out)
-        # print('pool1', out.shape)
 
         out = F.relu(self.conv2(out))
-        # print('conv2', out.shape)
+        if self.pool_size2 is None:
+            self.pool_size2 = out.size()[2:]
+
         out, self.indices2 = self.pool2(out)
-        # print('pool2', out.shape)
 
         out = F.relu(self.conv3(out))
-        # print('conv3', out.shape)
+
+        if self.pool_size3 is None:
+            self.pool_size3 = out.size()[2:]
         out, self.indices3 = self.pool3(out)
-        # print('pool3', out.shape)
 
         out = self.flatten(out)
-        # print('flat', out.shape)
         h = self.fc_enc(out)
 
-        # print("h", h.shape)
-        # print("h_text", h_text.shape)
-        z, mu, logvar = self.bottleneck(h, h_text)
+        z, mu, logvar = self.bottleneck(h, text_h_dim)
         return z, mu, logvar
 
-    def decode(self, z, h_text):
-        z = self.fc3(z)
-        z = torch.cat((z, h_text), 1)
+    def decode(self, z, text_h_dim):
+        z = torch.cat((z, text_h_dim), 1)
+        out = self.fc3(z)
+        out = self.unflatten(out, size=(128, 7, 7))
 
-        # print('dec_inp', z.shape)
-        out = self.unflatten(z)
-        # print('un_flat', out.shape)
-
+        if self.indices3 is None:
+            out = self.upsample1(out)
+        else:
+            out = self.uppool1(out, self.indices3, output_size=self.pool_size3)
         out = F.relu(self.deconv1(out))
-        # print('deconv1', out.shape)
-        out = self.uppool1(out, self.indices3)
-        # print('uppool1', out.shape)
 
+        if self.indices2 is None:
+            out = self.upsample2(out)
+        else:
+            out = self.uppool2(out, self.indices2, output_size=self.pool_size2)
         out = F.relu(self.deconv2(out))
-        # print('deconv2', out.shape)
-        out = self.uppool2(out, self.indices2)
-        # print('uppool2', out.shape)
 
+        if self.indices1 is None:
+            out = self.upsample3(out)
+        else:
+            out = self.uppool3(out, self.indices1, output_size=self.pool_size1)
         out = F.relu(self.deconv3(out))
-        # print('deconv3', out.shape)
-        out = self.uppool3(out, self.indices1)
-        # print('uppool3', out.shape)
 
-        out = F.relu(self.deconv4(out))
-        # print('deconv4', out.shape)
-        z = self.sigm(out)
+        out = self.sigm(out)
 
-        return z
+        self.indices1 = None
+        self.indices2 = None
+        self.indices3 = None
+
+        return out
 
     def get_h_text(self, caption):
         return self.text_encoder(caption)
 
-    def forward(self, x, caption):
-        h_text = self.get_h_text(caption)
-        z, mu, logvar = self.encode(x, h_text)
-        z = self.decode(z, h_text)
+    def forward(self, image, caption):
+        text_h_dim = self.get_h_text(caption)
+        z, mu, logvar = self.encode(image, text_h_dim)
+        z = self.decode(z, text_h_dim)
         return z, mu, logvar
 
 

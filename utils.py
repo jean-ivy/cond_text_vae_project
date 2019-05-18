@@ -6,8 +6,8 @@ import cv2
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-
 nltk.download('stopwords')
+nltk.download('wordnet')
 
 REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')
 BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
