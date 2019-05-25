@@ -17,7 +17,7 @@ def text_prepare(text):
     text = text.lower()
     text = re.sub(REPLACE_BY_SPACE_RE, " ", text)
     text = re.sub(BAD_SYMBOLS_RE, "", text)
-    text = ' '.join([word for word in text.split() if word not in STOPWORDS])
+    #text = ' '.join([word for word in text.split() if word not in STOPWORDS])
     return text
 
 def gray(image):

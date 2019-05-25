@@ -15,15 +15,15 @@ class PascalLoadData(Dataset):
 
         self.vocab = vocab
         self.vocab_keys = vocab.keys()
-        self.max_len = 50
+        self.max_len = 25
 
     def __getitem__(self, index):
         image = self.images[self.names[index]]
         image = self.transform(image)
         description = self.descriptions[self.names[index]]
-        flat_description = [item for sublist in description for item in sublist]
+        #flat_description = [item for sublist in description for item in sublist]
 
-        caption = [self.vocab[token] if token in self.vocab_keys else self.vocab['<UNK>'] for token in flat_description]
+        caption = [self.vocab[token] if token in self.vocab_keys else self.vocab['<UNK>'] for token in description]
         caption = [self.vocab['<BOS>']] + caption + [self.vocab['<EOS>']]
         caption = caption[:self.max_len] + (self.max_len - len(caption)) * [self.vocab['<PAD>']]
         caption = torch.LongTensor(caption)
