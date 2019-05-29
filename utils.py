@@ -25,38 +25,24 @@ def gray(image):
     return gray
 
 def prepare_pascal(path):
-    lemmatizer = WordNetLemmatizer()
 
     # Prepare text descriptors
-    word_description = {}
+    word_description, image_description = {}, {}
+
     for folder_cls in os.listdir(path):
         folder_cls_path = os.path.join(path, folder_cls)
+
         for example in os.listdir(folder_cls_path):
             example_path = os.path.join(folder_cls_path, example)
             txt_path = os.path.join(example_path, "description.txt")
-            full_name = "{}_{}".format(folder_cls, example)
-            with open(txt_path, "r") as f:
-                word_description[full_name] = f.read().strip().split('\n')
-
-    for img_name, text_info in word_description.items():
-        for i, sent in enumerate(text_info):
-            lemmatized_sent = []
-            for idx, word in enumerate(text_prepare(sent).split()):
-                lemmatized_sent.append(lemmatizer.lemmatize(word))
-            text_info[i] = lemmatized_sent
-
-    # Prepare image descriptors
-    image_description = {}
-    for folder_cls in os.listdir(path):
-        folder_cls_path = os.path.join(path, folder_cls)
-        for example in os.listdir(folder_cls_path):
-            example_path = os.path.join(folder_cls_path, example)
             image_path = os.path.join(example_path, "image.jpg")
             full_name = "{}_{}".format(folder_cls, example)
-            image_description[full_name] = cv2.imread(image_path)
-
-    for img_name, img in image_description.items():
-        image_description[img_name] = gray(img)
+            full_name += "_{}"
+            with open(txt_path, "r") as f:
+                text_descriptions = f.read().strip().split('\n')
+                for i in range(len(text_descriptions)):
+                    word_description[full_name.format(i)] = text_descriptions[i]
+                    image_description[full_name.format(i)] = gray(cv2.imread(image_path))
 
     return word_description, image_description
 

@@ -21,7 +21,6 @@ class PascalLoadData(Dataset):
         image = self.images[self.names[index]]
         image = self.transform(image)
         description = self.descriptions[self.names[index]]
-        #flat_description = [item for sublist in description for item in sublist]
 
         caption = [self.vocab[token] if token in self.vocab_keys else self.vocab['<UNK>'] for token in description]
         caption = [self.vocab['<BOS>']] + caption + [self.vocab['<EOS>']]
