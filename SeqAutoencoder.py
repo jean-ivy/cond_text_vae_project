@@ -1,7 +1,6 @@
 import random
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 SEED = 1
 
@@ -21,15 +20,15 @@ class Encoder(nn.Module):
         self.dropout = dropout
 
         self.embedding = nn.Embedding(input_dim, emb_dim)
-        self.rnn = nn.LSTM(emb_dim, hid_dim, n_layers, dropout=dropout)
+        self.rnn = nn.RNN(emb_dim, hid_dim, n_layers, dropout=dropout)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, src):
 
         embedded = self.dropout(self.embedding(src))
-        outputs, (hidden, cell) = self.rnn(embedded)
+        outputs, hidden = self.rnn(embedded)
 
-        return hidden, cell
+        return hidden
 
 
 class Decoder(nn.Module):
@@ -43,18 +42,18 @@ class Decoder(nn.Module):
         self.dropout = dropout
 
         self.embedding = nn.Embedding(output_dim, emb_dim)
-        self.rnn = nn.LSTM(emb_dim, hid_dim, n_layers, dropout=dropout)
+        self.rnn = nn.RNN(emb_dim, hid_dim, n_layers, dropout=dropout)
         self.out = nn.Linear(hid_dim, output_dim)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, input, hidden, cell):
+    def forward(self, input, hidden):
 
         input = input.unsqueeze(0)
         embedded = self.dropout(self.embedding(input))
-        output, (hidden, cell) = self.rnn(embedded, (hidden, cell))
+        output, hidden = self.rnn(embedded, hidden)
         prediction = self.out(output.squeeze(0))
 
-        return prediction, hidden, cell
+        return prediction, hidden
 
 
 class Seq2Seq(nn.Module):
@@ -65,16 +64,12 @@ class Seq2Seq(nn.Module):
         self.decoder = decoder
         self.device = device
 
-        assert encoder.hid_dim == decoder.hid_dim, \
-            "Hidden dimensions of encoder and decoder must be equal!"
-        assert encoder.n_layers == decoder.n_layers, \
-            "Encoder and decoder must have equal number of layers!"
-
     def forward(self, src, trg, teacher_forcing_ratio=0.5):
         # src = [src sent len, batch size]
         # trg = [trg sent len, batch size]
         # teacher_forcing_ratio is probability to use teacher forcing
         # e.g. if teacher_forcing_ratio is 0.75 we use ground-truth inputs 75% of the time
+
 
         batch_size = trg.shape[1]
         max_len = trg.shape[0]
@@ -84,13 +79,13 @@ class Seq2Seq(nn.Module):
         outputs = torch.zeros(max_len, batch_size, trg_vocab_size).to(self.device)
 
         # last hidden state of the encoder is used as the initial hidden state of the decoder
-        hidden, cell = self.encoder(src)
+        hidden = self.encoder(src)
 
         # first input to the decoder is the <sos> tokens
         input = trg[0, :]
 
         for t in range(1, max_len):
-            output, hidden, cell = self.decoder(input, hidden, cell)
+            output, hidden = self.decoder(input, hidden)
             outputs[t] = output
             teacher_force = random.random() < teacher_forcing_ratio
             top1 = output.max(1)[1]

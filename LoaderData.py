@@ -20,7 +20,7 @@ class PascalLoadData(Dataset):
     def __getitem__(self, index):
         image = self.images[self.names[index]]
         image = self.transform(image)
-        description = self.descriptions[self.names[index]]
+        description = self.descriptions[self.names[index]].split()
 
         caption = [self.vocab[token] if token in self.vocab_keys else self.vocab['<UNK>'] for token in description]
         caption = [self.vocab['<BOS>']] + caption + [self.vocab['<EOS>']]

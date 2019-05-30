@@ -12,12 +12,15 @@ nltk.download('wordnet')
 REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')
 BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
 STOPWORDS = set(stopwords.words('english'))
+LEMMATIZER = WordNetLemmatizer()
+
 
 def text_prepare(text):
     text = text.lower()
     text = re.sub(REPLACE_BY_SPACE_RE, " ", text)
     text = re.sub(BAD_SYMBOLS_RE, "", text)
     #text = ' '.join([word for word in text.split() if word not in STOPWORDS])
+    text = ' '.join([LEMMATIZER.lemmatize(word) for word in text.split()])
     return text
 
 def gray(image):
@@ -41,7 +44,7 @@ def prepare_pascal(path):
             with open(txt_path, "r") as f:
                 text_descriptions = f.read().strip().split('\n')
                 for i in range(len(text_descriptions)):
-                    word_description[full_name.format(i)] = text_descriptions[i]
+                    word_description[full_name.format(i)] = text_prepare(text_descriptions[i])
                     image_description[full_name.format(i)] = gray(cv2.imread(image_path))
 
     return word_description, image_description
